@@ -334,8 +334,14 @@ export default function ProjectSearch() {
                 Next
               </Button>
             </div>
-            <p className="pb-1 text-xs text-slate-400">
-              © 2026 Ontario Construction News
+            <p className="pt-1 pb-2 text-center text-xs text-slate-400 hover:underline">
+              <a
+                href="https://www.ontarioconstructionnews.com"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                2650547 Ontario Ltd. 2026 Ontario Construction News
+              </a>
             </p>
           </div>
         </footer>
