@@ -18,6 +18,8 @@ export type Project = {
   solicitation_number?: string | null
   solicitation_type?: string | null
   source_status?: string | null
+  computed_status?: string | null
+  logo_url?: string | null
   buyer_name?: string | null
   buyer_email?: string | null
   buyer_phone?: string | null

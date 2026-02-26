@@ -2,9 +2,11 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Schema;
 
 class Project extends Model
@@ -52,6 +54,11 @@ class Project extends Model
         'is_featured',
     ];
 
+    protected $appends = [
+        'computed_status',
+        'logo_url',
+    ];
+
     protected $casts = [
         'published_at' => 'datetime',
         'date_available_at' => 'datetime',
@@ -64,6 +71,51 @@ class Project extends Model
         'client_divisions' => 'array',
         'wards' => 'array',
     ];
+
+    /* ── Computed attributes ─────────────────────────────────────── */
+
+    /**
+     * Override source_status when the closing date has passed.
+     */
+    protected function computedStatus(): Attribute
+    {
+        return Attribute::get(function (): string {
+            // If the closing deadline is in the past, the project is expired
+            // regardless of what the scraped source_status says.
+            if ($this->date_closing_at instanceof Carbon && $this->date_closing_at->isPast()) {
+                return 'Expired';
+            }
+
+            // If we have a source_status that looks like "awarded", keep it.
+            $raw = strtolower((string) $this->source_status);
+            if (str_contains($raw, 'award')) {
+                return 'Awarded';
+            }
+
+            // Default to original source_status or "Open".
+            return $this->source_status ?: 'Open';
+        });
+    }
+
+    /**
+     * Generate a Google Favicon URL from the source_url domain.
+     */
+    protected function logoUrl(): Attribute
+    {
+        return Attribute::get(function (): ?string {
+            if (empty($this->source_url)) {
+                return null;
+            }
+
+            $host = parse_url($this->source_url, PHP_URL_HOST);
+
+            if (!$host) {
+                return null;
+            }
+
+            return 'https://www.google.com/s2/favicons?domain=' . urlencode($host) . '&sz=64';
+        });
+    }
 
     public static function bootSoftDeletes(): void
     {

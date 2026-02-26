@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
+import { SourceComboBox } from '@/components/SourceComboBox'
 import {
   Tooltip,
   TooltipContent,
@@ -120,8 +121,11 @@ export default function ProjectsPage() {
   const [queryInput, setQueryInput] = useState('')
   const [debouncedQuery, setDebouncedQuery] = useState('')
   const [source, setSource] = useState('')
+  const [availableSources, setAvailableSources] = useState<string[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [isSheetOpen, setIsSheetOpen] = useState(false)
+  const [isDetailSheetOpen, setIsDetailSheetOpen] = useState(false)
+  const [detailProject, setDetailProject] = useState<Project | null>(null)
   const [formMode, setFormMode] = useState<'add' | 'edit'>('add')
   const [formData, setFormData] = useState<ProjectForm>(emptyForm)
   const [activeProjectId, setActiveProjectId] = useState<number | null>(null)
@@ -172,6 +176,27 @@ export default function ProjectsPage() {
 
     return () => controller.abort()
   }, [params])
+
+  useEffect(() => {
+    const controller = new AbortController()
+
+    const loadSources = async () => {
+      try {
+        const response = await adminFetch('/admin/projects/sources', {
+          signal: controller.signal,
+        })
+        if (!response.ok) throw new Error('Failed to load sources')
+        const payload = await response.json()
+        setAvailableSources(Array.isArray(payload.data) ? payload.data : [])
+      } catch {
+        setAvailableSources([])
+      }
+    }
+
+    loadSources()
+
+    return () => controller.abort()
+  }, [])
 
   const pageRange = useMemo(() => buildPageRange(page, lastPage), [page, lastPage])
 
@@ -283,6 +308,11 @@ export default function ProjectsPage() {
     toast.success('Project deleted')
   }, [])
 
+  const openDetail = useCallback((project: Project) => {
+    setDetailProject(project)
+    setIsDetailSheetOpen(true)
+  }, [])
+
   return (
     <TooltipProvider delayDuration={200}>
       <motion.div
@@ -299,14 +329,14 @@ export default function ProjectsPage() {
               {total.toLocaleString()} projects found
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="grid w-full items-center gap-3 sm:w-auto sm:grid-cols-[220px_190px_auto]">
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <Input
                 value={queryInput}
                 onChange={(e) => setQueryInput(e.target.value)}
                 placeholder="Search projects"
-                className="w-56 pl-9"
+                className="h-10 w-full pl-9 text-sm"
               />
               {queryInput && (
                 <button
@@ -318,162 +348,177 @@ export default function ProjectsPage() {
                 </button>
               )}
             </div>
-            <Input
+            <SourceComboBox
+              sources={availableSources}
               value={source}
-              onChange={(e) => {
-                setSource(e.target.value)
+              onChange={(next) => {
+                setSource(next)
                 setPage(1)
               }}
-              placeholder="Filter by source"
-              className="w-48"
+              disabled={isLoading}
+              triggerClassName="h-10 text-sm"
             />
-            <Button onClick={openCreate} className="gap-1.5">
+            <Button onClick={openCreate} className="h-10 gap-1.5 px-4 text-sm">
               <PlusIcon className="h-4 w-4" />
               Add Project
             </Button>
           </div>
         </div>
 
-        {/* ── Table ─────────────────────────────────────────────────── */}
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-          <table className="w-full text-left text-sm">
-            <thead className="border-b border-slate-100 bg-slate-50/80">
-              <tr>
-                <th className="w-10 px-4 py-3" />
-                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                  Project
-                </th>
-                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                  Source
-                </th>
-                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                  Location
-                </th>
-                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                  Close Date
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              <AnimatePresence mode="popLayout">
-                {isLoading
-                  ? Array.from({ length: 8 }).map((_, idx) => (
-                      <tr key={`skel-${idx}`} className="h-[72px]">
-                        <td className="px-4 py-3">
-                          <Skeleton className="h-5 w-5 rounded-full" />
-                        </td>
-                        <td className="px-4 py-3">
-                          <Skeleton className="h-4 w-56" />
-                          <Skeleton className="mt-2 h-3 w-24" />
-                        </td>
-                        <td className="px-4 py-3"><Skeleton className="h-4 w-28" /></td>
-                        <td className="px-4 py-3"><Skeleton className="h-4 w-32" /></td>
-                        <td className="px-4 py-3"><Skeleton className="h-4 w-20" /></td>
-                        <td className="px-4 py-3"><Skeleton className="h-7 w-20 float-right" /></td>
-                      </tr>
-                    ))
-                  : projects.map((project) => (
-                      <motion.tr
-                        key={project.id}
-                        layout
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        transition={{ duration: 0.2 }}
-                        className="group transition-colors hover:bg-slate-50/80"
-                      >
-                        <td className="px-4 py-3">
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <button
-                                onClick={() => toggleFeatured(project)}
-                                className="rounded-full p-1 transition-colors hover:bg-amber-50"
-                              >
-                                <StarIcon
-                                  className={`h-4 w-4 transition-colors ${
-                                    project.is_featured
-                                      ? 'fill-amber-400 text-amber-500'
-                                      : 'text-slate-300 group-hover:text-amber-300'
-                                  }`}
-                                />
-                              </button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              {project.is_featured ? 'Remove from featured' : 'Feature this project'}
-                            </TooltipContent>
-                          </Tooltip>
-                        </td>
-                        <td className="px-4 py-3">
-                          <p className="font-medium text-slate-900 leading-snug">
-                            {project.title}
-                          </p>
+        {/* ── Compact project list ──────────────────────────────────── */}
+        <div className="space-y-3">
+          <AnimatePresence mode="popLayout">
+            {isLoading
+              ? Array.from({ length: 8 }).map((_, idx) => (
+                  <div
+                    key={`skel-${idx}`}
+                    className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1 space-y-2">
+                        <Skeleton className="h-4 w-4/5" />
+                        <div className="flex gap-2">
+                          <Skeleton className="h-5 w-24 rounded-full" />
+                          <Skeleton className="h-5 w-20 rounded-full" />
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Skeleton className="h-8 w-8 rounded-md" />
+                        <Skeleton className="h-8 w-8 rounded-md" />
+                        <Skeleton className="h-8 w-8 rounded-md" />
+                      </div>
+                    </div>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                      <Skeleton className="h-3 w-28" />
+                      <Skeleton className="h-3 w-24" />
+                      <Skeleton className="h-3 w-24" />
+                    </div>
+                  </div>
+                ))
+              : projects.map((project) => (
+                  <motion.div
+                    key={project.id}
+                    layout
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.2 }}
+                    className="group cursor-pointer rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md"
+                    onClick={() => openDetail(project)}
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0 flex-1">
+                        <p className="line-clamp-2 text-sm font-semibold leading-snug text-slate-900 sm:text-[15px]">
+                          {project.title}
+                        </p>
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
                           {project.source_status && (
                             <Badge
                               variant="outline"
-                              className={`mt-1.5 text-[10px] ${statusBadgeStyles(project.source_status)}`}
+                              className={`text-[10px] ${statusBadgeStyles(project.source_status)}`}
                             >
                               {project.source_status}
                             </Badge>
                           )}
-                        </td>
-                        <td className="px-4 py-3 text-slate-600">
-                          {project.source_site_name ?? '—'}
-                        </td>
-                        <td className="px-4 py-3 text-slate-600">
-                          {project.location ?? '—'}
-                        </td>
-                        <td className="px-4 py-3 tabular-nums text-slate-600">
-                          {project.date_closing_at
-                            ? new Date(project.date_closing_at).toLocaleDateString('en-CA')
-                            : '—'}
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <div className="flex items-center justify-end gap-1.5">
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  size="icon"
-                                  variant="ghost"
-                                  className="h-8 w-8"
-                                  onClick={() => openEdit(project)}
-                                >
-                                  <PencilIcon className="h-3.5 w-3.5" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>Edit</TooltipContent>
-                            </Tooltip>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  size="icon"
-                                  variant="ghost"
-                                  className="h-8 w-8 text-rose-500 hover:bg-rose-50 hover:text-rose-600"
-                                  onClick={() => handleDelete(project)}
-                                >
-                                  <Trash2Icon className="h-3.5 w-3.5" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>Delete</TooltipContent>
-                            </Tooltip>
-                          </div>
-                        </td>
-                      </motion.tr>
-                    ))}
-              </AnimatePresence>
+                          <Badge
+                            variant="outline"
+                            className="border-slate-200 bg-slate-50 text-[10px] text-slate-600"
+                          >
+                            {project.source_site_name ?? 'Unknown source'}
+                          </Badge>
+                        </div>
+                      </div>
 
-              {projects.length === 0 && !isLoading && (
-                <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center">
-                    <Search className="mx-auto mb-2 h-6 w-6 text-slate-300" />
-                    <p className="text-sm text-slate-500">No projects found.</p>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                      <div className="flex items-center gap-1">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-8 w-8"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                toggleFeatured(project)
+                              }}
+                            >
+                              <StarIcon
+                                className={`h-4 w-4 transition-colors ${
+                                  project.is_featured
+                                    ? 'fill-amber-400 text-amber-500'
+                                    : 'text-slate-300 group-hover:text-amber-300'
+                                }`}
+                              />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            {project.is_featured ? 'Remove from featured' : 'Feature this project'}
+                          </TooltipContent>
+                        </Tooltip>
+
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-8 w-8"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                openEdit(project)
+                              }}
+                            >
+                              <PencilIcon className="h-3.5 w-3.5" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Edit</TooltipContent>
+                        </Tooltip>
+
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-8 w-8 text-rose-500 hover:bg-rose-50 hover:text-rose-600"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleDelete(project)
+                              }}
+                            >
+                              <Trash2Icon className="h-3.5 w-3.5" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Delete</TooltipContent>
+                        </Tooltip>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 grid gap-2 text-xs text-slate-500 sm:grid-cols-3">
+                      <p className="truncate">
+                        <span className="font-medium text-slate-700">Location:</span>{' '}
+                        {project.location ?? '—'}
+                      </p>
+                      <p className="tabular-nums">
+                        <span className="font-medium text-slate-700">Closing:</span>{' '}
+                        {project.date_closing_at
+                          ? new Date(project.date_closing_at).toLocaleDateString('en-CA')
+                          : '—'}
+                      </p>
+                      <p className="tabular-nums">
+                        <span className="font-medium text-slate-700">Published:</span>{' '}
+                        {project.published_at
+                          ? new Date(project.published_at).toLocaleDateString('en-CA')
+                          : '—'}
+                      </p>
+                    </div>
+                  </motion.div>
+                ))}
+          </AnimatePresence>
+
+          {projects.length === 0 && !isLoading && (
+            <div className="rounded-xl border border-slate-200 bg-white px-4 py-12 text-center shadow-sm">
+              <Search className="mx-auto mb-2 h-6 w-6 text-slate-300" />
+              <p className="text-sm text-slate-500">No projects found.</p>
+            </div>
+          )}
         </div>
 
         {/* ── Pagination ────────────────────────────────────────────── */}
@@ -638,6 +683,84 @@ export default function ProjectsPage() {
                 </Button>
               </SheetFooter>
             </form>
+          </SheetContent>
+        </Sheet>
+
+        <Sheet open={isDetailSheetOpen} onOpenChange={setIsDetailSheetOpen}>
+          <SheetContent className="overflow-y-auto sm:max-w-xl">
+            <SheetHeader>
+              <SheetTitle>Project Details</SheetTitle>
+              <SheetDescription>
+                Review project information and source metadata.
+              </SheetDescription>
+            </SheetHeader>
+
+            {detailProject && (
+              <div className="mt-6 space-y-5 text-sm">
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Title</p>
+                  <p className="text-sm font-medium leading-snug text-slate-900">{detailProject.title}</p>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Source</p>
+                    <p className="text-slate-700">{detailProject.source_site_name ?? '—'}</p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Status</p>
+                    <p className="text-slate-700">{detailProject.source_status ?? '—'}</p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Location</p>
+                    <p className="text-slate-700">{detailProject.location ?? '—'}</p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Featured</p>
+                    <p className="text-slate-700">{detailProject.is_featured ? 'Yes' : 'No'}</p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Published</p>
+                    <p className="tabular-nums text-slate-700">
+                      {detailProject.published_at
+                        ? new Date(detailProject.published_at).toLocaleString()
+                        : '—'}
+                    </p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Closing</p>
+                    <p className="tabular-nums text-slate-700">
+                      {detailProject.date_closing_at
+                        ? new Date(detailProject.date_closing_at).toLocaleString()
+                        : '—'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Source URL</p>
+                  {detailProject.source_url ? (
+                    <a
+                      href={detailProject.source_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="break-all text-blue-600 hover:text-blue-700"
+                    >
+                      {detailProject.source_url}
+                    </a>
+                  ) : (
+                    <p className="text-slate-700">—</p>
+                  )}
+                </div>
+
+                <div className="space-y-1.5">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Description</p>
+                  <p className="whitespace-pre-wrap text-slate-700">
+                    {detailProject.description || 'No description provided.'}
+                  </p>
+                </div>
+              </div>
+            )}
           </SheetContent>
         </Sheet>
       </motion.div>

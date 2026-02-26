@@ -8,6 +8,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Throwable;
 
 class ProjectController extends Controller
@@ -72,21 +73,41 @@ class ProjectController extends Controller
         }
 
         if (!empty($validated['source'])) {
-            $query->where('source_site_name', $validated['source']);
+            $source = trim($validated['source']);
+            $normalizedSource = Str::lower($source);
+            $sourceKey = Str::slug($source);
+
+            $query->where(function (Builder $builder) use ($source, $normalizedSource, $sourceKey): void {
+                $builder
+                    ->whereRaw('LOWER(TRIM(source_site_name)) = ?', [$normalizedSource])
+                    ->orWhere('source_site_key', $source)
+                    ->orWhere('source_site_key', $sourceKey);
+            });
         }
 
         if (!empty($validated['status'])) {
             $status = $validated['status'];
             if ($status === 'open') {
                 $query->where(function ($builder): void {
-                    $builder->where('source_status', 'like', '%open%')
-                        ->orWhere(function ($q): void {
-                            $q->whereNull('source_status')
-                                ->where(function ($inner): void {
-                                    $inner->whereNull('date_closing_at')
-                                        ->orWhere('date_closing_at', '>', now());
-                                });
-                        });
+                    $builder->where(function ($q): void {
+                        $q->whereRaw("LOWER(COALESCE(source_status, '')) like ?", ['%open%'])
+                            ->orWhereRaw("LOWER(COALESCE(source_status, '')) like ?", ['%active%'])
+                            ->orWhere(function ($statusQ): void {
+                                $statusQ->whereNull('source_status')
+                                    ->orWhereRaw("TRIM(COALESCE(source_status, '')) = ''")
+                                    ->orWhere(function ($activeStatus): void {
+                                        $activeStatus
+                                            ->whereRaw("LOWER(source_status) not like ?", ['%award%'])
+                                            ->whereRaw("LOWER(source_status) not like ?", ['%closed%'])
+                                            ->whereRaw("LOWER(source_status) not like ?", ['%cancel%'])
+                                            ->whereRaw("LOWER(source_status) not like ?", ['%expired%'])
+                                            ->whereRaw("LOWER(source_status) not like ?", ['%complete%']);
+                                    });
+                            });
+                    })->where(function ($inner): void {
+                        $inner->whereNull('date_closing_at')
+                            ->orWhere('date_closing_at', '>', now());
+                    });
                 });
             } elseif ($status === 'awarded') {
                 $query->where('source_status', 'like', '%award%');
@@ -95,6 +116,7 @@ class ProjectController extends Controller
                     $builder->where('source_status', 'like', '%closed%')
                         ->orWhere('source_status', 'like', '%cancel%')
                         ->orWhere('source_status', 'like', '%expired%')
+                        ->orWhere('source_status', 'like', '%complete%')
                         ->orWhere(function ($q): void {
                             $q->whereNotNull('date_closing_at')
                                 ->where('date_closing_at', '<=', now())

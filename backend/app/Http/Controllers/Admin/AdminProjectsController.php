@@ -7,6 +7,8 @@ use App\Models\Project;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Str;
+use Throwable;
 
 class AdminProjectsController extends Controller
 {
@@ -34,7 +36,16 @@ class AdminProjectsController extends Controller
         }
 
         if (!empty($validated['source'])) {
-            $query->where('source_site_name', $validated['source']);
+            $source = trim($validated['source']);
+            $normalizedSource = Str::lower($source);
+            $sourceKey = Str::slug($source);
+
+            $query->where(function ($builder) use ($source, $normalizedSource, $sourceKey): void {
+                $builder
+                    ->whereRaw('LOWER(TRIM(source_site_name)) = ?', [$normalizedSource])
+                    ->orWhere('source_site_key', $source)
+                    ->orWhere('source_site_key', $sourceKey);
+            });
         }
 
         if (array_key_exists('featured', $validated)) {
@@ -113,6 +124,25 @@ class AdminProjectsController extends Controller
 
         return response()->json([
             'message' => 'Project deleted.',
+        ]);
+    }
+
+    public function sources(): JsonResponse
+    {
+        try {
+            $sources = Project::query()
+                ->whereNotNull('source_site_name')
+                ->whereRaw("TRIM(source_site_name) != ''")
+                ->distinct()
+                ->orderBy('source_site_name')
+                ->pluck('source_site_name')
+                ->values();
+        } catch (Throwable) {
+            $sources = collect();
+        }
+
+        return response()->json([
+            'data' => $sources,
         ]);
     }
 }

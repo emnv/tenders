@@ -3,6 +3,7 @@ import {
   Clock,
   Copy,
   ExternalLink,
+  Globe,
   MapPin,
   CalendarClock,
   AlertTriangle,
@@ -67,7 +68,7 @@ function statusBadge(status?: string | null) {
   ) {
     return {
       label: 'Expired',
-      className: 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200',
+      className: 'bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200',
     }
   }
   return {
@@ -76,10 +77,29 @@ function statusBadge(status?: string | null) {
   }
 }
 
+/** Tiny favicon with fallback Globe icon */
+function SourceLogo({ url, name }: { url?: string | null; name?: string | null }) {
+  return url ? (
+    <img
+      src={url}
+      alt={name ?? 'source'}
+      className="h-5 w-5 rounded-sm object-contain"
+      loading="lazy"
+      onError={(e) => {
+        // Replace broken image with nothing – the fallback icon shows via CSS sibling
+        e.currentTarget.style.display = 'none'
+        e.currentTarget.nextElementSibling?.classList.remove('hidden')
+      }}
+    />
+  ) : (
+    <Globe className="h-4 w-4 text-slate-400" />
+  )
+}
+
 /* ── component ────────────────────────────────────────────────────── */
 
 export function ProjectCard({ project, tabStatus, onClick }: ProjectCardProps) {
-  const badge = statusBadge(project.source_status)
+  const badge = statusBadge(project.computed_status ?? project.source_status)
   const closingSoon = isClosingSoon(project.date_closing_at)
   const isExpiredTab = tabStatus === 'expired'
 
@@ -168,7 +188,9 @@ export function ProjectCard({ project, tabStatus, onClick }: ProjectCardProps) {
                 </span>
               )}
             </span>
-            <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs text-slate-500">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs text-slate-500">
+              <SourceLogo url={project.logo_url} name={project.source_site_name} />
+              <Globe className="hidden h-4 w-4 text-slate-400" />
               {project.source_site_name ?? 'Source'}
             </span>
           </div>

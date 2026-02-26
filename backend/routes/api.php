@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AdsController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\Admin\AdminAdsController;
 use App\Http\Controllers\Admin\AdminAnalyticsController;
@@ -11,6 +12,7 @@ use Illuminate\Support\Facades\Route;
 Route::get('/projects', [ProjectController::class, 'index']);
 Route::get('/search', [ProjectController::class, 'search']);
 Route::get('/sources', [ProjectController::class, 'sources']);
+Route::get('/ads/active', [AdsController::class, 'active']);
 
 Route::prefix('admin')->group(function () {
 	Route::post('/auth/login', [AdminAuthController::class, 'login']);
@@ -19,6 +21,7 @@ Route::prefix('admin')->group(function () {
 		Route::post('/auth/logout', [AdminAuthController::class, 'logout']);
 		Route::get('/analytics', [AdminAnalyticsController::class, 'index']);
 		Route::get('/projects', [AdminProjectsController::class, 'index']);
+		Route::get('/projects/sources', [AdminProjectsController::class, 'sources']);
 		Route::post('/projects', [AdminProjectsController::class, 'store']);
 		Route::patch('/projects/{project}', [AdminProjectsController::class, 'update']);
 		Route::delete('/projects/{project}', [AdminProjectsController::class, 'destroy']);

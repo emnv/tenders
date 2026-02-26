@@ -21,9 +21,16 @@ interface SourceComboBoxProps {
   value: string
   onChange: (value: string) => void
   disabled?: boolean
+  triggerClassName?: string
 }
 
-export function SourceComboBox({ sources, value, onChange, disabled }: SourceComboBoxProps) {
+export function SourceComboBox({
+  sources,
+  value,
+  onChange,
+  disabled,
+  triggerClassName,
+}: SourceComboBoxProps) {
   const [open, setOpen] = useState(false)
 
   const displayLabel = value || 'All sources'
@@ -36,7 +43,10 @@ export function SourceComboBox({ sources, value, onChange, disabled }: SourceCom
           role="combobox"
           aria-expanded={open}
           disabled={disabled}
-          className="h-12 w-full justify-between text-base font-normal"
+          className={cn(
+            'h-12 w-full justify-between text-base font-normal',
+            triggerClassName,
+          )}
         >
           <span className="truncate">{displayLabel}</span>
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />

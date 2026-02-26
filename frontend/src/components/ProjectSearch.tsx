@@ -15,6 +15,8 @@ import {
   type Project,
   type ProjectStatus,
 } from '@/hooks/use-projects'
+import { useAds } from '@/hooks/use-ads'
+import DynamicAdSlot from '@/components/DynamicAdSlot'
 import ocnLogo from '@/assets/ocn-logo.png'
 
 const PAGE_SIZE = 6
@@ -112,6 +114,9 @@ export default function ProjectSearch() {
     setSheetOpen(true)
   }, [])
 
+  /* ── ads data (cached at layout level) ──────────────────────────── */
+  const { data: ads } = useAds()
+
   /* ── skeleton grid while loading with no placeholderData ─────────── */
   const showSkeleton = isLoading
 
@@ -131,6 +136,11 @@ export default function ProjectSearch() {
             )}
           </div>
         </header>
+
+        {/* ── Header Ad Slot ──────────────────────────────────── */}
+        {ads?.header?.enabled && ads.header.embed_code && (
+          <DynamicAdSlot placement="header" embedCode={ads.header.embed_code} />
+        )}
 
         {/* ── Main ───────────────────────────────────────────────── */}
         <motion.main
@@ -269,6 +279,11 @@ export default function ProjectSearch() {
             </div>
           </section>
         </motion.main>
+
+        {/* ── Footer Ad Slot ──────────────────────────────────── */}
+        {ads?.footer?.enabled && ads.footer.embed_code && (
+          <DynamicAdSlot placement="footer" embedCode={ads.footer.embed_code} />
+        )}
 
         {/* ── Footer / Pagination ───────────────────────────────── */}
         <footer className="sticky bottom-0 z-20 border-t border-slate-100 bg-white/95 shadow-[0_-8px_20px_rgba(15,23,42,0.04)] backdrop-blur">

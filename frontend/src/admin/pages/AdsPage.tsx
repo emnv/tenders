@@ -1,23 +1,18 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { toast } from 'sonner'
 import {
   Code2,
   LayoutTemplate,
   Megaphone,
-  ToggleLeft,
-  ToggleRight,
 } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
 import {
-  Tooltip,
-  TooltipContent,
   TooltipProvider,
-  TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { adminFetch } from '../lib/adminFetch'
 
@@ -31,8 +26,9 @@ type AdSpot = {
   embed_code: string | null
 }
 
-/* ── animation helpers ─────────────────────────────────────────────── */
-const STAGGER = 0.08
+/* ── constants ─────────────────────────────────────────────────────── */
+const STAGGER = 0.07
+const SAVE_DEBOUNCE = 800
 
 function placementBadge(placement: string) {
   const p = placement.toLowerCase()
@@ -48,6 +44,7 @@ function placementBadge(placement: string) {
 export default function AdsPage() {
   const [spots, setSpots] = useState<AdSpot[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
 
   useEffect(() => {
     const controller = new AbortController()
@@ -73,32 +70,8 @@ export default function AdsPage() {
     return () => controller.abort()
   }, [])
 
-  const toggleEnabled = useCallback(async (spot: AdSpot) => {
-    const nextValue = !spot.is_enabled
-    const response = await adminFetch(`/admin/ads/${spot.key}`, {
-      method: 'PATCH',
-      body: JSON.stringify({
-        name: spot.name,
-        provider: spot.provider,
-        is_enabled: nextValue,
-        settings: spot.settings,
-        embed_code: spot.embed_code,
-      }),
-    })
-
-    if (!response.ok) {
-      toast.error(`Failed to ${nextValue ? 'enable' : 'disable'} ad spot`)
-      return
-    }
-
-    const payload = await response.json()
-    setSpots((current) =>
-      current.map((item) => (item.key === spot.key ? payload.data : item)),
-    )
-    toast.success(`${spot.name} ${nextValue ? 'enabled' : 'disabled'}`)
-  }, [])
-
-  const saveSpot = useCallback(async (spot: AdSpot) => {
+  /* ── persist a spot to the API ───────────────────────────────────── */
+  const persistSpot = useCallback(async (spot: AdSpot) => {
     const response = await adminFetch(`/admin/ads/${spot.key}`, {
       method: 'PATCH',
       body: JSON.stringify({
@@ -111,26 +84,72 @@ export default function AdsPage() {
     })
 
     if (!response.ok) {
-      toast.error('Failed to save ad spot')
+      toast.error('Failed to save changes')
       return
     }
 
-    const payload = await response.json()
-    setSpots((current) =>
-      current.map((item) => (item.key === spot.key ? payload.data : item)),
-    )
-    toast.success('Ad spot saved')
+    toast.success('Changes saved')
   }, [])
 
-  const updateField = useCallback(
-    (spotKey: string, field: keyof AdSpot, value: string) => {
+  /* ── toggle enabled/disabled (immediate save) ────────────────────── */
+  const toggleEnabled = useCallback(
+    async (spot: AdSpot) => {
+      const nextValue = !spot.is_enabled
+
+      // optimistic update
       setSpots((current) =>
         current.map((item) =>
-          item.key === spotKey ? { ...item, [field]: value } : item,
+          item.key === spot.key ? { ...item, is_enabled: nextValue } : item,
         ),
       )
+
+      const response = await adminFetch(`/admin/ads/${spot.key}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          name: spot.name,
+          provider: spot.provider,
+          is_enabled: nextValue,
+          settings: spot.settings,
+          embed_code: spot.embed_code,
+        }),
+      })
+
+      if (!response.ok) {
+        // revert
+        setSpots((current) =>
+          current.map((item) =>
+            item.key === spot.key ? { ...item, is_enabled: !nextValue } : item,
+          ),
+        )
+        toast.error(`Failed to ${nextValue ? 'enable' : 'disable'} ${spot.name}`)
+        return
+      }
+
+      toast.success(`${spot.name} ${nextValue ? 'enabled' : 'disabled'}`)
     },
     [],
+  )
+
+  /* ── update a field + debounced auto-save ─────────────────────────── */
+  const updateField = useCallback(
+    (spotKey: string, field: keyof AdSpot, value: string) => {
+      setSpots((current) => {
+        const updated = current.map((item) => {
+          if (item.key !== spotKey) return item
+          const next = { ...item, [field]: value }
+
+          // schedule debounced save
+          clearTimeout(saveTimers.current[spotKey])
+          saveTimers.current[spotKey] = setTimeout(() => {
+            persistSpot(next)
+          }, SAVE_DEBOUNCE)
+
+          return next
+        })
+        return updated
+      })
+    },
+    [persistSpot],
   )
 
   return (
@@ -159,24 +178,23 @@ export default function AdsPage() {
         <div className="space-y-4">
           <AnimatePresence mode="popLayout">
             {isLoading
-              ? Array.from({ length: 3 }).map((_, idx) => (
+              ? Array.from({ length: 2 }).map((_, idx) => (
                   <div
                     key={`skel-${idx}`}
                     className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"
                   >
-                    <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div className="flex flex-wrap items-start justify-between gap-4">
                       <div className="space-y-2">
-                        <Skeleton className="h-5 w-40" />
+                        <Skeleton className="h-5 w-48" />
                         <Skeleton className="h-3 w-32" />
                       </div>
-                      <Skeleton className="h-7 w-24 rounded-full" />
+                      <Skeleton className="h-6 w-10 rounded-full" />
                     </div>
                     <div className="mt-5 grid gap-3 sm:grid-cols-2">
                       <Skeleton className="h-10 w-full" />
                       <Skeleton className="h-10 w-full" />
                     </div>
-                    <Skeleton className="mt-4 h-24 w-full" />
-                    <Skeleton className="mt-4 h-8 w-28 ml-auto" />
+                    <Skeleton className="mt-4 h-40 w-full" />
                   </div>
                 ))
               : spots.map((spot, idx) => (
@@ -190,8 +208,8 @@ export default function AdsPage() {
                     className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
                   >
                     {/* top row */}
-                    <div className="flex flex-wrap items-start justify-between gap-4">
-                      <div>
+                    <div className="flex flex-wrap items-center justify-between gap-4">
+                      <div className="flex-1">
                         <div className="flex items-center gap-2">
                           <LayoutTemplate className="h-4 w-4 text-slate-400" />
                           <h3 className="text-base font-semibold text-slate-800">
@@ -208,35 +226,25 @@ export default function AdsPage() {
                         </div>
                       </div>
 
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <button
-                            onClick={() => toggleEnabled(spot)}
-                            className="group flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition-colors"
-                            style={{
-                              borderColor: spot.is_enabled ? '#d1fae5' : '#e2e8f0',
-                              background: spot.is_enabled ? '#ecfdf5' : '#f8fafc',
-                              color: spot.is_enabled ? '#047857' : '#64748b',
-                            }}
-                          >
-                            {spot.is_enabled ? (
-                              <ToggleRight className="h-3.5 w-3.5" />
-                            ) : (
-                              <ToggleLeft className="h-3.5 w-3.5" />
-                            )}
-                            {spot.is_enabled ? 'Enabled' : 'Disabled'}
-                          </button>
-                        </TooltipTrigger>
-                        <TooltipContent side="left">
-                          Click to {spot.is_enabled ? 'disable' : 'enable'}
-                        </TooltipContent>
-                      </Tooltip>
+                      <div className="flex items-center gap-2">
+                        <Label
+                          htmlFor={`switch-${spot.key}`}
+                          className="text-xs text-slate-500"
+                        >
+                          {spot.is_enabled ? 'Enabled' : 'Disabled'}
+                        </Label>
+                        <Switch
+                          id={`switch-${spot.key}`}
+                          checked={spot.is_enabled}
+                          onCheckedChange={() => toggleEnabled(spot)}
+                        />
+                      </div>
                     </div>
 
                     {/* form fields */}
                     <div className="mt-5 grid gap-4 sm:grid-cols-2">
                       <div className="space-y-1.5">
-                        <Label className="text-xs font-semibold">Provider</Label>
+                        <Label className="text-xs capitalize">Provider</Label>
                         <Input
                           value={spot.provider ?? ''}
                           onChange={(e) =>
@@ -246,7 +254,7 @@ export default function AdsPage() {
                         />
                       </div>
                       <div className="space-y-1.5">
-                        <Label className="text-xs font-semibold">Name</Label>
+                        <Label className="text-xs capitalize">Name</Label>
                         <Input
                           value={spot.name}
                           onChange={(e) =>
@@ -257,7 +265,7 @@ export default function AdsPage() {
                     </div>
 
                     <div className="mt-4 space-y-1.5">
-                      <Label className="flex items-center gap-1.5 text-xs font-semibold">
+                      <Label className="flex items-center gap-1.5 text-xs">
                         <Code2 className="h-3 w-3 text-slate-400" />
                         Embed code
                       </Label>
@@ -266,17 +274,13 @@ export default function AdsPage() {
                         onChange={(e) =>
                           updateField(spot.key, 'embed_code', e.target.value)
                         }
-                        rows={4}
-                        className="min-h-[100px] w-full rounded-md border border-input bg-transparent px-3 py-2 font-mono text-xs shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                        placeholder="Paste Google Ads code or custom HTML snippet"
+                        rows={10}
+                        className="min-h-[200px] w-full resize-y rounded-md border border-input bg-transparent px-3 py-2 font-mono text-xs leading-relaxed shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                        placeholder="Paste Google Publisher Tags (GPT), AdSense code, or any custom HTML + script snippet here"
                       />
-                    </div>
-
-                    {/* footer */}
-                    <div className="mt-5 flex justify-end border-t border-slate-100 pt-4">
-                      <Button size="sm" onClick={() => saveSpot(spot)}>
-                        Save settings
-                      </Button>
+                      <p className="text-[11px] text-slate-400">
+                        Changes auto-save after you stop typing. Scripts are injected dynamically on the public page.
+                      </p>
                     </div>
                   </motion.div>
                 ))}
