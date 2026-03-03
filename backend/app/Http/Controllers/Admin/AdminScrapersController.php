@@ -102,6 +102,20 @@ class AdminScrapersController extends Controller
             'source_url' => 'https://www.ontario.ca/page/ontarios-highway-programs',
             'params' => [],
         ],
+        [
+            'key' => 'canadabuys-tenders',
+            'name' => 'Canada Tender Opportunities',
+            'command' => 'scrape:canadabuys',
+            'source_url' => 'https://canadabuys.canada.ca/en/tender-opportunities',
+            'params' => ['pages', 'items_per_page'],
+        ],
+        [
+            'key' => 'quebec-seao',
+            'name' => 'Quebec SEAO Construction Opportunities',
+            'command' => 'scrape:quebec-seao',
+            'source_url' => 'https://seao.gouv.qc.ca/avis-resultat-recherche?statIds=6&tpIds=2%2C3%2C5%2C6%2C7%2C8%2C10%2C14%2C15%2C17%2C18%2C19&catIds=52&prov=AvisDuJour&addendaPublieDerniereVisite=false',
+            'params' => ['url'],
+        ],
     ];
 
     public function index(): JsonResponse
@@ -189,6 +203,13 @@ class AdminScrapersController extends Controller
             if ($value !== null && $value !== '') {
                 $optionName = $scraper['option_map'][$param] ?? str_replace('_', '-', $param);
                 $arguments['--' . $optionName] = $value;
+                continue;
+            }
+
+            $defaultValue = $this->defaultOptionValue($param);
+            if ($defaultValue !== null) {
+                $optionName = $scraper['option_map'][$param] ?? str_replace('_', '-', $param);
+                $arguments['--' . $optionName] = $defaultValue;
             }
         }
 
@@ -212,5 +233,13 @@ class AdminScrapersController extends Controller
                 'message' => 'Scraper failed: ' . $e->getMessage(),
             ], 500);
         }
+    }
+
+    private function defaultOptionValue(string $param): mixed
+    {
+        return match ($param) {
+            'items_per_page' => 200,
+            default => null,
+        };
     }
 }

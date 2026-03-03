@@ -75,6 +75,16 @@ class ScrapeAll extends Command
                 'command' => 'scrape:ontario-highway-programs',
                 'params' => [],
             ],
+            [
+                'key' => 'canadabuys-tenders',
+                'command' => 'scrape:canadabuys',
+                'params' => ['pages', 'items_per_page'],
+            ],
+            [
+                'key' => 'quebec-seao',
+                'command' => 'scrape:quebec-seao',
+                'params' => ['url'],
+            ],
         ];
 
         $settings = DB::table('scraper_settings')->get()->keyBy('source_site_key');
@@ -97,6 +107,12 @@ class ScrapeAll extends Command
                 foreach ($entry['params'] as $param) {
                     if (isset($config[$param]) && $config[$param] !== '') {
                         $options[$this->normalizeOptionKey($param)] = $config[$param];
+                        continue;
+                    }
+
+                    $defaultValue = $this->defaultOptionValue($param);
+                    if ($defaultValue !== null) {
+                        $options[$this->normalizeOptionKey($param)] = $defaultValue;
                     }
                 }
 
@@ -138,6 +154,13 @@ class ScrapeAll extends Command
             'expected_count' => 'expected-count',
             'max_pages' => 'max-pages',
             default => str_replace('_', '-', $param),
+        };
+    }
+
+    private function defaultOptionValue(string $param): mixed
+    {
+        return match ($param) {
+            default => null,
         };
     }
 }
