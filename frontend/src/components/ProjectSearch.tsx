@@ -126,11 +126,9 @@ export default function ProjectSearch() {
         {/* ── Header ─────────────────────────────────────────────── */}
         <header className="sticky top-0 z-30 border-b border-slate-100 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80">
           <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-5">
-            <img
-              src={ocnLogo}
-              alt="Ontario Construction News"
-              className="h-12 w-auto sm:h-14"
-            />
+            <a href="https://www.ontarioconstructionnews.com" rel="noopener noreferrer">
+              <img src={ocnLogo} alt="Ontario Construction News" className="h-16 w-auto sm:h-18" />
+            </a>
             {isFetching && !isLoading && (
               <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
             )}
