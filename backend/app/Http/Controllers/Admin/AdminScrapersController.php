@@ -116,6 +116,13 @@ class AdminScrapersController extends Controller
             'source_url' => 'https://seao.gouv.qc.ca/avis-resultat-recherche?statIds=6&tpIds=2%2C3%2C5%2C6%2C7%2C8%2C10%2C14%2C15%2C17%2C18%2C19&catIds=52&prov=AvisDuJour&addendaPublieDerniereVisite=false',
             'params' => ['url'],
         ],
+        [
+            'key' => 'nunavut-tenders',
+            'name' => 'Nunavut Tenders',
+            'command' => 'scrape:nunavut-tenders',
+            'source_url' => 'https://nunavuttenders.ca',
+            'params' => [],
+        ],
     ];
 
     public function index(): JsonResponse
