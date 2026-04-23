@@ -88,6 +88,8 @@ export function ProjectDetailSheet({
 }: ProjectDetailSheetProps) {
   if (!project) return null
 
+  const displayStatus = project.computed_status ?? project.source_status
+
   const handleCopy = () => {
     const url = project.source_url || window.location.href
     navigator.clipboard.writeText(url).then(() => {
@@ -106,15 +108,15 @@ export function ProjectDetailSheet({
             <SheetTitle className="flex-1 text-xl leading-snug">
               {project.title}
             </SheetTitle>
-            {project.source_status && (
+            {displayStatus && (
               <Badge
                 variant="outline"
                 className={cn(
                   'shrink-0 rounded-full',
-                  statusBadgeColor(project.source_status)
+                  statusBadgeColor(displayStatus)
                 )}
               >
-                {project.source_status}
+                {displayStatus}
               </Badge>
             )}
           </div>

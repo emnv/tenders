@@ -75,21 +75,20 @@ class Project extends Model
     /* ── Computed attributes ─────────────────────────────────────── */
 
     /**
-     * Override source_status when the closing date has passed.
+     * Preserve awarded status; otherwise mark past-deadline projects as expired.
      */
     protected function computedStatus(): Attribute
     {
         return Attribute::get(function (): string {
-            // If the closing deadline is in the past, the project is expired
-            // regardless of what the scraped source_status says.
-            if ($this->date_closing_at instanceof Carbon && $this->date_closing_at->isPast()) {
-                return 'Expired';
-            }
-
-            // If we have a source_status that looks like "awarded", keep it.
             $raw = strtolower((string) $this->source_status);
             if (str_contains($raw, 'award')) {
                 return 'Awarded';
+            }
+
+            // If the closing deadline is in the past, the project is expired
+            // unless the source already marks it as awarded.
+            if ($this->date_closing_at instanceof Carbon && $this->date_closing_at->isPast()) {
+                return 'Expired';
             }
 
             // Default to original source_status or "Open".

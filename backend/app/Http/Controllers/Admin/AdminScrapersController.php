@@ -123,6 +123,13 @@ class AdminScrapersController extends Controller
             'source_url' => 'https://nunavuttenders.ca',
             'params' => [],
         ],
+        [
+            'key' => 'montreal-tenders',
+            'name' => "Montreal Appels d'offres",
+            'command' => 'scrape:montreal-tenders',
+            'source_url' => 'https://montreal.ca/avis-dappel-doffres?page=1',
+            'params' => ['max_pages'],
+        ],
     ];
 
     public function index(): JsonResponse

@@ -79,7 +79,6 @@ export function useProjects(filters: ProjectFilters) {
   return useQuery({
     queryKey: ['projects', filters.keyword, filters.source, filters.status, filters.page],
     queryFn: () => fetchProjects(filters),
-    placeholderData: (prev) => prev,
     staleTime: 30_000,
   })
 }

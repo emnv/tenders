@@ -85,6 +85,16 @@ class ScrapeAll extends Command
                 'command' => 'scrape:quebec-seao',
                 'params' => ['url'],
             ],
+            [
+                'key' => 'nunavut-tenders',
+                'command' => 'scrape:nunavut-tenders',
+                'params' => [],
+            ],
+            [
+                'key' => 'montreal-tenders',
+                'command' => 'scrape:montreal-tenders',
+                'params' => ['max_pages'],
+            ],
         ];
 
         $settings = DB::table('scraper_settings')->get()->keyBy('source_site_key');
