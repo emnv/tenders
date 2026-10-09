@@ -130,6 +130,13 @@ class AdminScrapersController extends Controller
             'source_url' => 'https://montreal.ca/avis-dappel-doffres?page=1',
             'params' => ['max_pages'],
         ],
+        [
+            'key' => 'vancouver-tenders',
+            'name' => 'City of Vancouver Bids',
+            'command' => 'scrape:vancouver-tenders',
+            'source_url' => 'https://bids.sciquest.com/apps/Router/PublicEvent?tab=PHX_NAV_SourcingOpenForBid&CustomerOrg=CityofVancouver',
+            'params' => ['status_pages'],
+        ],
     ];
 
     public function index(): JsonResponse

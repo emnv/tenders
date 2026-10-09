@@ -95,6 +95,11 @@ class ScrapeAll extends Command
                 'command' => 'scrape:montreal-tenders',
                 'params' => ['max_pages'],
             ],
+            [
+                'key' => 'vancouver-tenders',
+                'command' => 'scrape:vancouver-tenders',
+                'params' => ['status_pages'],
+            ],
         ];
 
         $settings = DB::table('scraper_settings')->get()->keyBy('source_site_key');

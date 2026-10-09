@@ -206,13 +206,16 @@ class ScrapeBritishColumbiaBid extends Command
                 'verify' => filter_var(env('HTTP_VERIFY_SSL', true), FILTER_VALIDATE_BOOLEAN),
             ]);
 
-        $fullPageResponse = $fullPageClient->get(self::PAGE_URL);
-        if ($fullPageResponse->successful()) {
-            $fullPageHtml = $fullPageResponse->body();
-            $totalRecords = $totalRecords ?? $this->extractTotalRecords($fullPageHtml);
+        // The full page is only a fallback for the record count; a browser check
+        // here is not fatal because the ajax grid endpoint may still accept the session.
+        if ($totalRecords === null) {
+            $fullPageResponse = $fullPageClient->get(self::PAGE_URL);
+            $fullPageHtml = $fullPageResponse->successful() ? $fullPageResponse->body() : '';
 
             if (str_contains($fullPageHtml, 'Browser check: BC Bid') || str_contains($fullPageHtml, 'Access Denied')) {
-                throw new \RuntimeException('Session credentials are invalid or expired. Please provide fresh credentials from a browser session.');
+                $this->warn('Full page returned the browser check; continuing with the ajax grid request.');
+            } else {
+                $totalRecords = $this->extractTotalRecords($fullPageHtml);
             }
         }
 
@@ -221,13 +224,17 @@ class ScrapeBritishColumbiaBid extends Command
         $html = $this->fetchAjaxPageDirect($client, $basePayload, 1);
 
         if (str_contains($html, 'Browser check: BC Bid') || str_contains($html, 'Access Denied')) {
-            throw new \RuntimeException('Session credentials are invalid or expired. Please provide fresh credentials from a browser session.');
+            throw new \RuntimeException('BC Bid rejected the session on the ajax grid request (browser check). Provide fresh credentials from the same browser, with BC_BID_USER_AGENT matching its User-Agent.');
         }
 
         $pages[] = $html;
 
         // Extract max page index from response
         $rowsOnPage = $this->countRowsOnPage($html);
+
+        if ($rowsOnPage === 0) {
+            throw new \RuntimeException('BC Bid returned no listing rows on page 1. Response starts with: '.mb_substr(trim(strip_tags($html)), 0, 200));
+        }
         $maxPagesAvailable = $this->maxPageIndexFromHtml($html, $totalRecords, $rowsOnPage);
         if (env('SCRAPER_DEBUG_BC_BID')) {
             $this->info("BC Bid debug: totalRecords={$totalRecords}, rowsOnPage={$rowsOnPage}, computedPages={$maxPagesAvailable}");
@@ -388,7 +395,13 @@ class ScrapeBritishColumbiaBid extends Command
     {
         $response = $client
             ->asForm()
+            ->withoutRedirecting()
             ->post(self::AJAX_URL.'?ivControlUIDsAsync=body:x:grid:upgrid&asyncmodulename=rfp&asyncpagename=request_browse_public', $payload);
+
+        // A rejected session is redirected to the browser check page.
+        if ($response->redirect()) {
+            throw new \RuntimeException("BC Bid rejected the session on page {$pageIndex} (redirected to ".$response->header('Location').'). Provide fresh credentials from the same browser, with BC_BID_USER_AGENT matching its User-Agent.');
+        }
 
         if (!$response->successful()) {
             throw new \RuntimeException("BC Bid page {$pageIndex} request failed with status ".$response->status());
@@ -646,7 +659,10 @@ class ScrapeBritishColumbiaBid extends Command
         }
 
         try {
-            return Carbon::createFromFormat('Y-m-d g:i:s A', $trimmed, 'America/Vancouver');
+            $date = Carbon::createFromFormat('Y-m-d g:i:s A', $trimmed, 'America/Vancouver');
+
+            // Standing lists use placeholder dates (e.g. 2075-12-31) beyond MySQL TIMESTAMP range.
+            return $date->year > 2037 ? null : $date;
         } catch (Throwable $exception) {
             return null;
         }
